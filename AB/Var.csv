@@ -1,0 +1,8 @@
+Variable,Data Type,Role,Description,Example
+no,Integer,Identifier,Row index of the dataset,0
+user.id,Integer,Identifier,Unique identifier for the user,1069124
+test.group,Character,Predictor,Group assignment indicating exposure to advertisement,"""ad"""
+converted,Logical,Target,Whether the user bought the product (True/False),FALSE
+total.ads,Integer,Predictor,Total number of ads seen by the user,130
+most.ads.day,Character,Predictor,Day of the week when the user saw the most ads,"""Monday"""
+most.ads.hour,Integer,Predictor,Hour of the day when the user saw the most ads,20

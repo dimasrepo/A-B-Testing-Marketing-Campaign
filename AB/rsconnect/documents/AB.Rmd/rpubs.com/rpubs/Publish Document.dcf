@@ -1,0 +1,10 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/1215371/148faba86d0544f382d1c5c87f4dd94a
+bundleId: https://api.rpubs.com/api/v1/document/1215371/148faba86d0544f382d1c5c87f4dd94a
+url: http://rpubs.com/senddimas/1215371
+version: 1

@@ -1,0 +1,848 @@
+---
+title: "AB Testing Marketing Campaign"
+author: "Dimas Aditya"
+date:
+output: 
+  html_document:
+    theme: flatly
+    toc: yes
+    toc_float: 
+      collapsed: true
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+library(png)
+
+
+img <- readPNG("image.png")
+
+scale_factor <- 1
+
+
+img_width <- 2000
+img_height <- 2000
+
+
+ new_width <- img_width * scale_factor
+ new_height <- img_height * scale_factor
+
+
+plot_width <- 2000
+plot_height <- 2000
+
+
+left <- (plot_width - new_width) / 1
+right <- left + new_width
+bottom <- (plot_height - new_height) / 1
+top <- bottom + new_height
+
+
+plot.new()
+
+
+plot.window(xlim = c(0, plot_width), ylim = c(0, plot_height), asp = 1)
+
+
+rasterImage(img, left, bottom, right, top, interpolate = FALSE)
+
+```
+
+# Introduction
+# Description
+Marketing companies strive to execute effectively targeted campaigns in a complex market environment, where predicting audience preferences can be challenging. To tackle this issue, A/B testing is commonly employed. A/B testing is a randomized experimentation method where two or more variations of a variable (such as a webpage, page element, or advertisement) are shown simultaneously to different individuals from various segments. This approach helps identify which version has the most significant impact and attracts more customers.
+
+Source: https://www.kaggle.com/datasets/faviovaz/marketing-ab-testing/data
+
+# Business Question
+
+The primary goals of this project are:
+
+1. Assessing Campaign Success: Determine whether the campaign will be successful based on the analysis of ad exposure and user conversions.
+2. Quantifying Success Attribution: Evaluate the extent to which the success of the campaign can be attributed to the advertisements.
+
+To achieve these objectives, we will conduct a comprehensive analysis of the provided dataset, focusing on how ad exposure influences user conversions. This analysis will help us understand the effectiveness of the campaign and measure the contribution of the ads to its overall success.
+
+
+# Variable Description
+
+```{r echo=FALSE}
+library(DT)
+var <- read.csv("Var.csv")
+datatable(var, options = list(
+  scrollX = TRUE, pageLength = 10))
+```
+
+# 1. Data Preparation
+## 1.1 Prerequisites
+## 1.2 Importing Libraries
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(plotly)
+library(scales)
+library(glue)
+library(ggplot2)
+library(gridExtra)
+library(viridis)
+library(patchwork)
+
+```
+
+## 1.3 Importing Data
+
+```{r}
+data <- read.csv("marketing_AB.csv")
+head(data)
+```
+
+
+## 1.4 Data Inspection
+
+```{r}
+str(data)
+```
+
+# 2. Exploratory Data Analysis
+
+```{r}
+data1 <- data %>% select(- no, -user.id) %>% mutate(
+    converted = as.integer(converted))
+head(data1)
+```
+
+```{r}
+str(data1)
+```
+
+
+
+
+```{r}
+unique(data1$converted)
+```
+
+```{r}
+unique(data1$test.group )
+```
+
+
+```{r}
+table(data1$converted)
+```
+
+## 2.1 Missing Value
+
+```{r}
+colSums(is.na(data1))
+```
+
+# 3. Data Wrangling
+
+## 3.1 Exploring Categorical Variables
+
+```{r}
+
+categorical_columns <- c('test.group', 'converted', 'most.ads.day', 'most.ads.hour')
+
+
+levels <- lapply(categorical_columns, function(col) {
+  unique(data1[[col]])
+})
+
+
+names(levels) <- categorical_columns
+
+
+for (col in categorical_columns) {
+  cat(paste(col, ":", paste(levels[[col]], collapse = ", ")), "\n")
+}
+```
+In the code above, the following steps are taken to process data within the data1 object, which is a data frame with 588,101 observations and 5 variables:
+
+Overall, this code aims to identify and display the unique values of the categorical columns in a data frame, which can be useful for understanding the distribution or variation of data within each categorical column.
+
+## 3.2 Bootstrap Analysis
+
+### 3.2.1 Conversion Rate by Group
+
+```{r}
+# # Define sampling size
+#  sampling <- 5000
+# 
+#  # Initialize vectors to store results
+#  control_group1 <- NULL
+#  test_group1 <- NULL
+# 
+#  # Set seed for reproducibility
+#  set.seed(100)
+# 
+#  # Bootstrap sampling for control group
+#  for(i in 1:sampling) {
+#     control_group2 <- length(control_group$converted)
+#     control_group3 <- control_group[sample(1:control_group2, replace=TRUE),]
+#     control_group4 <- sum(control_group3$converted == 1) / control_group2
+# 
+#     control_group1 <- c(control_group1, control_group4)
+#  }
+# 
+#  # Bootstrap sampling for test group
+#  for(i in 1:sampling) {
+#     test_group2 <- length(test_group$converted)
+#     test_group3 <- test_group[sample(1:test_group2, replace=TRUE),]
+#     test_group4 <- sum(test_group3$converted == 1) / test_group2
+# 
+#     test_group1 <- c(test_group1, test_group4)
+#  }
+
+# Save the results
+  # saveRDS(test_group1, "data_test_group.rds")
+  # saveRDS(control_group1, "data_control_group.rds")
+
+# Read the saved RDS files
+data_test_group1 <- readRDS("data_test_group.rds")
+data_control_group1 <- readRDS("data_control_group.rds")
+
+# Combine the data for plotting
+data_converted <- data.frame(
+  Distribution = c(rep("PSA", length(data_control_group1)), rep("AD", length(data_test_group1))),
+  value = c(data_control_group1, data_test_group1))
+```
+
+This code uses the bootstrap technique to estimate the distribution of conversion rates (converted) for two groups (control_group and test_group). By generating 5,000 bootstrap samples for each group, we can obtain a smoother distribution and better understand the variation in conversion rates within this population. The results are then ready for further analysis or visualization to determine if there is a significant difference in conversion rates between the control group and the test group.
+
+
+
+```{r}
+data_converted %>%
+  ggplot(aes(x = value, fill = Distribution)) + 
+  geom_area(stat = "Density", alpha = 0.7, position = "identity") +
+  xlab("Conversion Rate") +
+  ggtitle("Conversion Rate Distribution by Group") +
+  labs(fill = NULL ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("PSA" = "steelblue", "AD" = "tomato"))
+```
+
+The density plot shows the distribution of conversion rates for two groups, labeled "AD" and "PSA." The "AD" group has a higher conversion rate overall, with a narrower and taller peak around 0.024. The "PSA" group has a lower conversion rate, with a wider and shorter peak around 0.018. This suggests that the "AD" group is more effective in converting users compared to the "PSA" group.
+
+### 3.2.2 Conversion Rate All Distribution
+
+The primary goal of this analysis is to quantify the disparity in conversion rates between the test and control groups. By calculating the absolute percentage difference
+
+```{r}
+data_difference1 <- as.data.frame(cbind(data_test_group1, data_control_group1)) %>% 
+  mutate(diff1 = round(abs(data_test_group1 - data_control_group1)*100,2))
+```
+
+
+```{r}
+data_difference1 %>%
+  ggplot( aes(x=diff1)) +
+    geom_density( color="#e9ecef", fill = "steelblue", alpha=0.7) +
+    scale_fill_manual(values="#8fce00") +
+    xlab("Conversion Rate Diff")+
+  ggtitle("Conversion Rate Distribution")+
+    theme_minimal() +
+    labs(fill="")
+```
+
+## 3.3 Univariate Analysis
+
+### 3.3.1 T-Test
+```{r}
+control_group <- data1 %>% filter(data1$test.group == "psa")
+test_group <- data1 %>% filter(data1$test.group == "ad")
+
+
+t_test_result <- t.test(test_group$converted, control_group$converted)
+
+
+cat("Test Group Analysis - T-statistic:", t_test_result$statistic, ", P-value:", t_test_result$p.value, "\n")
+
+t_test_result <- t.test(test_group$converted, control_group$converted)
+
+
+p_val <- t_test_result$p.value
+
+
+if (p_val < 0.05) {
+  cat("Reject the null hypothesis: There is a significant difference in conversion rates between the 'ad' and 'psa' groups.\n")
+} else {
+  cat("Fail to reject the null hypothesis: There is no significant difference in conversion rates between the 'ad' and 'psa' groups.\n")
+}
+```
+This conclusion is based on a t-statistic of 8.657162 and a p-value of 5.107608e-18. The low p-value indicates that the observed difference is unlikely to be due to chance. Therefore, we can reject the null hypothesis (which states that there is no difference between the groups) and conclude that the "ad" group has a significantly higher conversion rate than the "psa" group.
+
+### 3.3.2 Analysis of Variance (Anova)
+
+
+```{r}
+
+anova_result_day <- aov(converted ~ `most.ads.day`, data = data1)
+
+
+anova_summary <- summary(anova_result_day)
+
+
+f_statistic <- anova_summary[[1]]["most.ads.day", "F value"]
+p_value <- anova_summary[[1]]["most.ads.day", "Pr(>F)"]
+
+cat("Most Ads Day Analysis - F-statistic:", f_statistic, ", P-value:", p_value, "\n")
+
+f_statistic <- anova_summary[[1]]["most.ads.day", "F value"]
+p_value <- anova_summary[[1]]["most.ads.day", "Pr(>F)"]
+
+
+if (p_value < 0.05) {
+  cat("Reject the null hypothesis: The day with the most ads seen significantly affects the conversion rate.\n")
+} else {
+  cat("Fail to reject the null hypothesis: The day with the most ads seen does not significantly affect conversion rates.\n")
+}
+```
+
+The statistical analysis indicates that there is a significant difference in conversion rates based on the day with the most ads seen. This conclusion is supported by an F-statistic of 68.38818 and a p-value of 1.803201e-85. The low p-value suggests that the observed difference is highly unlikely to be due to chance. Therefore, we can reject the null hypothesis (which states that there is no difference in conversion rates based on the day with the most ads seen) and conclude that the day with the most ads significantly affects the conversion rate.
+
+```{r}
+
+anova_result_hour <- aov(converted ~ as.factor(most.ads.hour), data = data1)
+
+
+anova_summary_hour <- summary(anova_result_hour)
+
+
+f_statistic_hour <- anova_summary_hour[[1]]$`F value`[1]
+p_value_hour <- anova_summary_hour[[1]]$`Pr(>F)`[1]
+
+
+cat("Most Ads Hour Analysis - F-statistic:", f_statistic_hour, ", P-value:", p_value_hour, "\n")
+
+if (p_value_hour < 0.05) {
+  cat("Reject the null hypothesis: The hour with the most ads seen significantly affects the conversion rate.\n")
+} else {
+  cat("Fail to reject the null hypothesis: The hour with the most ads seen does not significantly affect conversion rates.\n")
+}
+```
+
+The statistical analysis shows that there is a significant difference in conversion rates based on the hour with the most ads seen. This conclusion is supported by an F-statistic of 18.74204 and a p-value of 7.482025e-77. The low p-value suggests that the observed difference is highly unlikely to be due to chance. Therefore, we can reject the null hypothesis (which states that there is no difference in conversion rates based on the hour with the most ads seen) and conclude that the hour with the most ads significantly affects the conversion rate.
+
+```{r}
+
+df_subset <- data1 %>% filter(total.ads < 50)
+
+
+df_subset <- df_subset %>%
+  mutate(total_ads_bin = cut(total.ads, 
+                             breaks = c(-1, 1, 5, 10, 20, 30, 40, 50), 
+                             labels = c('0-1', '2-5', '6-10', '11-20', '21-30', '31-40', '41-50')))
+
+
+anova_result_bin <- aov(converted ~ total_ads_bin, data = df_subset)
+
+
+anova_summary_bin <- summary(anova_result_bin)
+
+
+f_statistic_bin <- anova_summary_bin[[1]]$`F value`[1]
+p_value_bin <- anova_summary_bin[[1]]$`Pr(>F)`[1]
+
+
+cat("Total Ads (Binned) Analysis - F-statistic:", f_statistic_bin, ", P-value:", p_value_bin, "\n")
+
+if (p_value_bin < 0.05) {
+  cat("Reject the null hypothesis: There is a significant difference in conversion rates among different levels of total ads seen (binned).\n")
+} else {
+  cat("Fail to reject the null hypothesis: The number of ads seen (binned) does not significantly affect conversion rates.\n")
+}
+```
+The statistical analysis demonstrates that there is a significant difference in conversion rates across various levels of total ads seen (binned). This conclusion is supported by an F-statistic of 1245.669 and a p-value of 0. The p-value of 0 indicates that the observed difference is highly unlikely to be due to chance. Therefore, we can reject the null hypothesis (which states that there is no difference in conversion rates based on the total ads seen) and conclude that the total ads seen significantly affects the conversion rate.
+
+
+
+```{r}
+contingency_table_day <- table(data1$most.ads.day, data1$converted)
+
+
+chi2_test <- chisq.test(contingency_table_day)
+
+
+p_val <- chi2_test$p.value
+
+
+alpha <- 0.05
+
+
+if (p_val < alpha) {
+    print("The p-value is less than 0.05, indicating a significant relationship between 'most ads day' and 'converted'.")
+} else {
+    print("The p-value is greater than 0.05, indicating no significant relationship between 'most ads day' and 'converted'.")
+}
+```
+The statement correctly interprets the p-value. A p-value less than 0.05 indicates that the observed relationship between "most ads day" and "converted" is statistically significant. This means that it is unlikely that the observed relationship occurred by chance.
+
+However, it's important to note that statistical significance does not necessarily imply practical significance. It's essential to consider the effect size and context of the analysis to determine the real-world importance of the finding.
+
+```{r}
+ categorical_columns <- c('test group', 'converted', 'most ads day', 'most ads hour')
+```
+
+
+```{r}
+
+conversion_rates <- data1 %>%
+  group_by(test.group) %>%
+  summarise(Conversion_Rate = mean(converted, na.rm = TRUE)) %>%
+  rename('Test Group' = test.group, 'Conversion Rate' = Conversion_Rate)
+
+
+ggplot(conversion_rates, aes(x = `Test Group`, y = `Conversion Rate`, fill = `Test Group`)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("ad" = "tomato", "psa" = "steelblue")) +
+  theme_minimal() +
+  labs(title = "Conversion Rates for Control and Test Groups",
+       x = "Test Group",
+       y = "Conversion Rate") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+It appears that one test group (likely "ad" colored tomato) has a higher conversion rate than the other group (likely "psa" colored steelblue).To determine which group has a definitively higher rate, we would need the actual values or the difference between the conversion rates. One test group (likely "ad" colored tomato) has a higher conversion rate than the other group (likely "psa" colored steelblue).
+
+
+```{r}
+day_conversion_rate <- data1 %>%
+  group_by(`most.ads.day`) %>%
+  summarise(`Conversion Rate` = mean(converted, na.rm = TRUE)) %>%
+  rename('Day of the Week' = `most.ads.day`) %>%
+  mutate(`Day of the Week` = factor(`Day of the Week`, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))) %>%
+  arrange(`Day of the Week`)
+
+
+ggplot(day_conversion_rate, aes(x = `Conversion Rate`, y = reorder(`Day of the Week`, `Conversion Rate`), fill = `Conversion Rate`)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradient(low = "lightcoral", high = "darkred") +  
+  theme_minimal() +
+  labs(title = "Conversion Rate by Day with Most Ads Seen",
+       x = "Conversion Rate",
+       y = "Day of the Week") +
+  theme(axis.text.y = element_text(angle = 0, hjust = 0.5)) +
+  guides(fill = "none")  
+```
+
+The horizontal bar chart displays the average conversion rate for each day of the week, with days sorted from highest to lowest conversion rate. The color of the bars corresponds to the conversion rate, with a gradient from light coral (likely indicating a lower rate) to dark red (likely indicating a higher rate).
+
+
+
+```{r}
+
+hour_conversion_rate <- data1 %>%
+  group_by(most.ads.hour) %>%
+  summarise(Conversion_Rate = mean(converted, na.rm = TRUE)) %>%
+  rename('Hour of the Day' = most.ads.hour, 'Conversion Rate' = Conversion_Rate) %>%
+  arrange(`Hour of the Day`)
+
+
+hour_conversion_rate <- hour_conversion_rate %>%
+  mutate(`Hour of the Day` = factor(`Hour of the Day`, levels = 1:24))
+
+
+ggplot(hour_conversion_rate, aes(x = `Hour of the Day`, y = `Conversion Rate`, fill = `Conversion Rate`)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradient(low = "lightcoral", high = "darkred") +
+  scale_x_discrete(breaks = 1:24) +  
+  theme_minimal() +
+  labs(title = "Conversion Rate by Hour with Most Ads Seen",
+       x = "Hour of the Day",
+       y = "Conversion Rate") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  guides(fill = "none")
+```
+
+Based on the data analysis, the highest conversion rate is achieved at 4:00 PM with an average of 3%, while the lowest conversion rate occurs at 2:00 AM with an average of 0.5%. This suggests that our advertising campaigns are most effective in the afternoon and less effective during the early morning hours. To improve campaign performance, it is recommended to increase ad frequency during the period from 4:00 PM to 7:00 PM and reduce the budget for hours outside of this time range.
+
+
+```{r}
+ads_conversion_rate_bin <- df_subset %>%
+  group_by(total_ads_bin) %>%
+  summarise(Conversion_Rate = mean(converted, na.rm = TRUE)) %>%
+  rename('Total Ads Seen (Binned)' = total_ads_bin, 'Conversion Rate' = Conversion_Rate)
+
+ggplot(ads_conversion_rate_bin, aes(x = reorder(`Total Ads Seen (Binned)`, `Conversion Rate`), y = `Conversion Rate`, fill = `Conversion Rate`)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradient(low = "lightcoral", high = "darkred") +  
+  coord_flip() +  
+  theme_minimal() +
+  labs(title = "Conversion Rate by Total Ads Seen (Binned) - Total Ads < 50",
+       x = "Total Ads Seen (Binned)",
+       y = "Conversion Rate") +
+  theme(axis.text.y = element_text(angle = 0, hjust = 0.5, size = 10),
+        axis.text.x = element_text(size = 10),
+        plot.title = element_text(size = 14, face = "bold"),
+        legend.position = "none")
+
+```
+There appears to be a difference in conversion rates across different bins of total ads seen, with some bins showing a higher average conversion rate than others.The bins are arranged from highest to lowest conversion rate, allowing for easy identification of the bins with the highest (dark red bars) and lowest (light coral bars) conversion rates. It's important to note that the analysis is limited to total ads seen less than 50. A similar analysis could be conducted for higher total ads seen bins to get a more complete picture of the relationship between total ads seen and conversion rate.
+
+
+
+
+
+
+```{r}
+
+test_group_colors <- c('#4e79a7', '#f28e2b')
+converted_colors <- c('#76b7b2', '#e15759')
+most_ads_day_colors <- c('#edc948', '#f28e2b', '#4e79a7', '#e15759', '#76b7b2', '#59a14f', '#b07aa1')
+
+
+most_ads_hour_colors <- scales::viridis_pal()(length(unique(data1$most.ads.hour)))
+
+
+bar_plot_1 <- ggplot(data1, aes(x = test.group, fill = test.group)) +
+  geom_bar(color = 'black') +
+  scale_fill_manual(values = test_group_colors) +
+  labs(title = 'Test Group', x = '', y = 'Number of Users') +
+  theme_minimal() +
+  ylim(0, max(table(data1$test.group)) * 1.1) +  
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5)  
+
+print(bar_plot_1)
+
+
+pie_data_1 <- data1 %>%
+  count(test.group) %>%
+  mutate(percentage = n / sum(n) * 100)
+
+pie_chart_1 <- ggplot(pie_data_1, aes(x = "", y = n, fill = test.group)) +
+  geom_bar(stat = 'identity', width = 1, color = "white") +
+  coord_polar(theta = 'y') +
+  scale_fill_manual(values = test_group_colors) +
+  labs(title = 'Test Group', x = '', y = '') +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks = element_blank(), panel.grid = element_blank())
+
+print(pie_chart_1)
+```
+
+> Test Group Analysis:
+
+The bar and pie charts for the 'Test Group' variable show a clear distribution of users across different test groups. The data suggests that there is a significant number of users in each test group, with some groups being larger than others. This indicates the need for tailored strategies depending on the size and characteristics of each group to maximize engagement and conversions.
+
+```{r}
+bar_plot_2 <- ggplot(data1, aes(x = factor(converted), fill = factor(converted))) +
+  geom_bar(color = 'black') +
+  scale_fill_manual(values = converted_colors) +
+  labs(title = 'Conversion Rate', x = '', y = 'Number of Users') +
+  theme_minimal() +
+  ylim(0, max(table(data1$converted)) * 1.1) +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5)
+
+print(bar_plot_2)
+
+
+pie_data_2 <- data1 %>%
+  count(converted) %>%
+  mutate(percentage = n / sum(n) * 100)
+
+pie_chart_2 <- ggplot(pie_data_2, aes(x = "", y = n, fill = factor(converted))) +
+  geom_bar(stat = 'identity', width = 1, color = "white") +
+  coord_polar(theta = 'y') +
+  scale_fill_manual(values = converted_colors) +
+  labs(title = 'Conversion Rate', x = '', y = '') +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks = element_blank(), panel.grid = element_blank())
+
+print(pie_chart_2)
+```
+
+> Conversion Rate
+
+The visualizations for 'Conversion Rate' indicate a noticeable difference between converted and non-converted users. The bar chart reveals the counts of each group, while the pie chart shows the percentage distribution, highlighting the proportion of users who converted versus those who did not. This insight is valuable for optimizing marketing efforts to increase conversion rates.
+
+```{r}
+bar_plot_3 <- ggplot(data1, aes(x = most.ads.day, fill = most.ads.day)) +
+  geom_bar(color = 'black') +
+  scale_fill_manual(values = most_ads_day_colors) +
+  labs(title = 'Most Ads Viewed by Day', x = '', y = 'Number of Users') +
+  theme_minimal() +
+  ylim(0, max(table(data1$most.ads.day)) * 1.1) +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5)
+
+print(bar_plot_3)
+
+
+pie_data_3 <- data1 %>%
+  count(most.ads.day) %>%
+  mutate(percentage = n / sum(n) * 100)
+
+pie_chart_3 <- ggplot(pie_data_3, aes(x = "", y = n, fill = most.ads.day)) +
+  geom_bar(stat = 'identity', width = 1, color = "white") +
+  coord_polar(theta = 'y') +
+  scale_fill_manual(values = most_ads_day_colors) +
+  labs(title = 'Most Ads Viewed by Day', x = '', y = '') +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks = element_blank(), panel.grid = element_blank()) +
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+            position = position_stack(vjust = 0.5), 
+            color = "white")
+
+print(pie_chart_3)
+```
+
+>Most Ads Viewed by Day
+
+The bar and pie charts for 'Most Ads Viewed by Day' provide insights into user engagement by day. Certain days have higher ad views, suggesting that users are more active or engaged on these days. Understanding which days perform better in terms of ad views can help in scheduling ads more effectively to maximize exposure and conversion rates.
+
+```{r}
+
+bar_plot_4 <- ggplot(data1, aes(x = factor(most.ads.hour), fill = factor(most.ads.hour))) +
+  geom_bar(color = 'black') +
+  scale_fill_manual(values = most_ads_hour_colors) +
+  labs(title = 'Most Ads Viewed by Hour', x = '', y = 'Number of Users') +
+  theme_minimal() +
+  ylim(0, max(table(data1$most.ads.hour)) * 1.1) +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5)
+
+print(bar_plot_4)
+
+
+pie_data_4 <- data1 %>%
+  count(most.ads.hour) %>%
+  mutate(percentage = n / sum(n) * 100)
+
+pie_chart_4 <- ggplot(pie_data_4, aes(x = "", y = n, fill = factor(most.ads.hour))) +
+  geom_bar(stat = 'identity', width = 1, color = "white") +
+  coord_polar(theta = 'y') +
+  scale_fill_manual(values = most_ads_hour_colors) +
+  labs(title = 'Most Ads Viewed by Hour', x = '', y = '') +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), 
+        axis.ticks = element_blank(), 
+        panel.grid = element_blank()) +
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+            position = position_stack(vjust = 0.5), 
+            color = "white")
+
+print(pie_chart_4)
+```
+
+> Most Ads Viewed by Hour
+
+The analysis of 'Most Ads Viewed by Hour' through bar and pie charts shows the distribution of ad views throughout different hours of the day. Certain hours, particularly in the late afternoon and early evening, have higher engagement. This information is crucial for timing ad placements to align with peak user activity times, thereby increasing the likelihood of conversions.
+
+```{r}
+
+percentile_95 <- quantile(data1$total.ads, 0.95)
+
+
+filtered_data <- data1 %>% filter(total.ads <= percentile_95)
+
+
+ggplot(filtered_data, aes(x = total.ads)) +
+  geom_histogram(bins = 50, fill = '#4e79a7', color = 'black', alpha = 0.7) +
+  geom_density(aes(y = ..count..), color = '#4e79a7', size = 1) +
+  labs(title = 'Total Ads Viewed', x = '', y = 'Frequency') +
+  theme_minimal()
+```
+
+The histogram displays the distribution of the number of total ads seen for entries where the number of ads seen is less than the 95th percentile. The x-axis represents the number of total ads seen, and the y-axis represents the frequency (count) of observations for each bin. The density curve helps visualize the overall shape of the distribution.
+
+
+
+
+## 3.4 Bivariate Analysis
+
+Bivariate analysis will be conducted to uncover relationships between pairs of variables. This analysis aims to reveal patterns and insights through visual exploration of how different variables interact. The specific areas of focus include:
+
+> Most Ads Day vs. Converted: The variation in conversion rates across different days of the week will be examined.
+> Most Ads Hour vs. Converted: The correlation between the time of day when users viewed the most ads and their conversion rates will be explored.
+> Total Ads vs. Converted: The relationship between the number of ads viewed and the likelihood of conversion will be analyzed.
+
+Through these analyses, trends and correlations will be identified to inform deeper investigation and understanding.
+
+### 3.4.1 Most Ads Day and Conversion Group
+
+```{r}
+conversion_counts <- data1 %>%
+  group_by(most.ads.day, converted) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  tidyr::spread(key = converted, value = count, fill = 0)
+```
+
+
+```{r}
+day_order <- c('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
+```
+
+
+```{r}
+conversion_counts <- conversion_counts %>%
+  mutate(most.ads.day = factor(most.ads.day, levels = day_order)) %>%
+  arrange(most.ads.day)
+```
+
+
+```{r}
+conversion_percentages <- conversion_counts %>%
+  mutate(Total = `0` + `1`) %>%
+  mutate(`0_percent` = (`0` / Total) * 100,
+         `1_percent` = (`1` / Total) * 100)
+```
+
+```{r}
+
+ggplot(conversion_percentages, aes(x = most.ads.day)) +
+  geom_bar(aes(y = `0_percent`, fill = 'Not Converted'), stat = 'identity', color = 'black', position = 'stack') +
+  geom_bar(aes(y = `1_percent`, fill = 'Converted'), stat = 'identity', color = 'black', position = 'stack') +
+  geom_text(aes(y = `0_percent` / 2, label = sprintf('%.1f%%', `0_percent`)), color = 'white', size = 3, vjust = 3) +
+  geom_text(aes(y = `0_percent` + `1_percent` / 2, label = sprintf('%.1f%%', `1_percent`)), color = 'white', size = 3, vjust = 35) +
+  scale_fill_manual(values = c('Not Converted' = '#4e79a7', 'Converted' = '#f28e2b')) +
+  labs(title = 'Most Ads Day and Conversion', x = '', y = 'Most Ads Day', fill = 'Converted') +
+  theme_minimal() +
+  theme(legend.position = 'bottom')
+```
+
+### 3.4.2 Most Ads Hour and Conversion Group
+
+```{r}
+ggplot(data1, aes(x = factor(converted), y = most.ads.hour, fill = factor(converted))) +
+  geom_boxplot(outlier.colour = "red", outlier.size = 1) +  
+  scale_fill_manual(values = c('0' = '#4e79a7', '1' = '#f28e2b')) + 
+  labs(title = 'Most Ads Hour vs. Conversion Status', 
+       x = 'Converted', 
+       y = 'Most Ads Hour', 
+       fill = 'Converted') + 
+  theme_minimal() +  
+  theme(legend.position = 'none')  
+```
+
+### 3.4.1 Total Ads Viewed vs. Conversion Status
+
+```{r}
+
+
+percentile_95_total_ads <- quantile(data1$total.ads, 0.95)
+
+
+filtered_data <- subset(data1, total.ads <= percentile_95_total_ads)
+
+
+ggplot(filtered_data, aes(x = factor(converted), y = total.ads, fill = factor(converted))) +
+  geom_boxplot(outlier.colour = "red", outlier.size = 1) +  
+  scale_fill_manual(values = c('0' = '#4e79a7', '1' = '#f28e2b')) + 
+  labs(title = 'Total Ads Viewed vs. Conversion Status', 
+       x = 'Converted', 
+       y = 'Total Ads Viewed', 
+       fill = 'Converted') +  
+  theme_minimal() +  
+  theme(legend.position = 'none')  
+```
+
+
+
+## 3.5 Statistical Testing
+
+### 3.5.1 Total Conversions by Day with Most Ads Seen
+
+```{r}
+
+contingency_table_day <- table(data1$most.ads.day, data1$converted)
+
+
+contingency_table_df <- as.data.frame(contingency_table_day)
+
+
+colnames(contingency_table_df) <- c('MostAdsDay', 'Converted', 'Count')
+
+
+sorted_table <- contingency_table_df %>%
+  group_by(MostAdsDay) %>%
+  summarise(Count = sum(Count)) %>%
+  arrange(desc(Count))
+
+
+print(sorted_table)
+```
+
+```{r}
+
+ggplot(sorted_table, aes(x = reorder(MostAdsDay, Count), y = Count, fill = MostAdsDay)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Total Conversions by Day with Most Ads Seen",
+       x = "Day with Most Ads Seen",
+       y = "Total Conversions") +
+  theme_minimal() +
+  coord_flip() 
+```
+
+
+### 3.5.2 Chi-Test Conversion Status by Most Ads Day
+
+```{r}
+
+contingency_table_day <- table(data1$most.ads.day, data1$converted)
+
+
+chi2_test <- chisq.test(contingency_table_day)
+
+
+expected_frequencies_day <- chi2_test$expected
+
+
+expected_frequencies_df <- as.data.frame(expected_frequencies_day)
+colnames(expected_frequencies_df) <- c('Not_Converted', 'Converted')
+
+
+rownames(expected_frequencies_df) <- rownames(expected_frequencies_day)
+
+
+expected_frequencies_df <- expected_frequencies_df %>%
+  mutate(across(everything(), round, 2))
+
+
+sorted_expected_frequencies <- expected_frequencies_df %>%
+  arrange(desc(Converted))
+
+
+print(sorted_expected_frequencies)
+```
+
+
+```{r}
+contingency_df <- as.data.frame(contingency_table_day)
+
+colnames(contingency_df) <- c('Most Ads Day', 'Converted', 'Count')
+
+
+ggplot(contingency_df, aes(x = `Converted`, y = `Most Ads Day`, fill = Count)) +
+  geom_tile(color = 'black') +  
+  geom_text(aes(label = Count), color = 'black', size = 3) + 
+  scale_fill_gradient2(low = "#ffcccc", mid = "#ffff99", high = "#0066cc", midpoint = median(contingency_df$Count)) +
+  labs(title = 'Heatmap of Conversion Status by Most Ads Day', x = 'Conversion Status', y = 'Most Ads Day') +
+  theme_minimal()
+```
+
+
+# 4. Conclusion
+
+The analysis of the marketing campaign data aligns closely with the project's primary goals of assessing campaign success and quantifying success attribution. By examining the optimal timing for campaigns—such as focusing on Mondays and targeting specific hours like 16:00—and understanding the impact of ad exposure on conversion rates, the study provides critical insights into the effectiveness of advertising strategies.
+
+To assess campaign success, the analysis explores how different days and times influence user conversions, revealing that Mondays, particularly in the late afternoon, consistently yield higher conversion rates. This insight is crucial for predicting the campaign's success and optimizing ad scheduling to maximize impact. Additionally, the identification of the optimal ad exposure range (250-749 exposures) highlights a sweet spot where ads are most effective without causing ad fatigue, directly addressing the goal of understanding how ad exposure influences conversions.
+
+Quantifying success attribution involves evaluating the extent to which these conversions can be attributed to the ads themselves. The correlation between increased ad exposure and higher conversion rates suggests that a well-calibrated level of exposure significantly contributes to campaign success. However, it also emphasizes the need to carefully manage exposure levels to avoid diminishing returns, ensuring that the ads are contributing effectively to user engagement and conversion.
+
+Overall, the findings provide a clear pathway to achieving the project's goals by demonstrating which factors—such as timing and ad exposure—most significantly drive campaign success and attributing this success accurately to the advertisements. Further analysis with additional data could provide even more precise insights, allowing for better campaign planning and resource allocation.
+
+
+
+# 5. Dataset
+
+```{r echo=FALSE}
+library(DT)
+dataset <- read.csv("marketing_AB.csv")
+datatable(var, options = list(
+  scrollX = TRUE, pageLength = 10))
+```
+
+
+
